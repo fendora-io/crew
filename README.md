@@ -18,7 +18,7 @@ write about, and another hour drafting.
 4. **You pick one, copy, paste into LinkedIn/X, post.** Native posting, not
    scheduler. Done in 5 minutes.
 
-That's it. No web UI. No SaaS. No scheduler. No publisher. ~350 lines of Python.
+That's it. No web UI. No SaaS. No scheduler. No publisher. ~650 lines of Python.
 
 ## Why this exists
 
@@ -30,7 +30,7 @@ without burning two hours a day on it, you might find this useful too.
 | Item | Monthly |
 |---|---|
 | VPS (Hetzner CX11 in Nuremberg) | €4.51 |
-| Anthropic API (daily use, Opus) | ~€5-10 |
+| Anthropic API (daily use, Sonnet) | ~€1-3 |
 | **Total** | **~€10-15** |
 
 No Typefully, no domain, no TLS, no third-party publisher.
