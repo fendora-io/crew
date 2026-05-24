@@ -96,6 +96,7 @@ Three levers, each in [`crew.py`](./crew.py):
 - `gather_signals` ranking — currently CVEs win, then HN by engagement, then GitHub.
   Adjust as you learn what produces your best posts.
 - `VOICE_SYSTEM_PROMPT` — the actual editorial product. Edit weekly.
+- Prompt caching ([docs](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)) caches the static voice prefix across the 2nd and 3rd draft in a run (~5 min window). Check server logs for `prompt cache read=…`.
 
 ## Security
 

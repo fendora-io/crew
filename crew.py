@@ -159,6 +159,60 @@ OUTPUT FORMAT — return strict JSON only, no preamble, no code fences:
 }
 """
 
+# Static editorial reference (cached with VOICE_SYSTEM_PROMPT). Keeps the cached
+# prefix above Sonnet's 1,024-token minimum. Add your own best posts below FEWSHOTS.
+VOICE_EDITORIAL_REFERENCE = """
+EDITORIAL REFERENCE — apply on every draft:
+
+STRUCTURE (LinkedIn):
+- Line 1–2: tension or surprise (specific, not generic).
+- Middle: what happened, why it matters to platform/security engineers, one opinion.
+- Close: one Monday-morning action (command, config check, policy, or question).
+- No "In today's fast-paced world". No recap of the headline in the first sentence.
+
+STRUCTURE (X thread):
+- Tweet 1: hook + explicit promise ("Here's what I'd do" / "3 checks I'd run").
+- Tweets 2–N: one idea each — tool name, flag, CVE, or failure mode.
+- Last tweet: sharpest line or CTA; no "follow for more".
+
+WEAK vs STRONG hooks (learn the pattern):
+- Weak: "Kubernetes security is more important than ever."
+- Strong: "If your cluster still runs anonymous auth to the API server, fix that before lunch."
+- Weak: "Supply chain attacks are on the rise."
+- Strong: "Your CI pipeline trusts `curl | bash` on tag `latest` — that's the vulnerability."
+
+ANTI-PATTERNS (reject these in your output):
+- Consultant framing ("organizations should consider", "stakeholders").
+- Vague urgency without a number, version, or command.
+- Threads that are just the LinkedIn post split into 270-char chunks.
+- LinkedIn posts that read like release notes.
+
+AUDIENCE (default):
+- Senior ICs and founders: platform, SRE, AppSec, cloud — not beginners, not C-suite fluff.
+
+FEWSHOTS — paste 2–5 of your best published posts here over time; they improve
+voice match and enlarge the cacheable prefix (cheaper multi-draft runs):
+(paste below this line)
+
+SIGNAL-TYPE ANGLES (pick the right frame):
+- Hacker News: what practitioners are arguing about; cite the debate, take a side.
+- NVD / CVE: who is affected, how to detect, patch or mitigate today — not CVE trivia.
+- GitHub Trending: why engineers are starring it; what you'd try in your stack Monday.
+
+TONE CALIBRATION:
+- Confident, not arrogant. Curious, not neutral. Skeptical of vendor marketing.
+- If the signal is policy/news (FCC, regulation): focus on engineering impact, not politics.
+- If the signal is a tool release: what breaks, what gets easier, for whom.
+
+JSON DISCIPLINE:
+- Valid JSON only. Escape newlines inside strings as \\n for linkedin and tweet text.
+- x_thread must be a JSON array of strings, 5–8 items, each <=270 chars.
+- why_it_matters is for the author (Telegram card), not for publication.
+- Do not wrap the JSON in markdown code fences.
+- Prefer active verbs in hooks: "Rotate", "Block", "Pin", "Delete", "Measure".
+
+"""
+
 # ============================================================
 # State — dedup signals across runs
 # ============================================================
@@ -384,6 +438,49 @@ def gather_signals() -> list[dict]:
 # ============================================================
 # Drafting
 # ============================================================
+def _prompt_cache_enabled() -> bool:
+    return os.environ.get("CREW_PROMPT_CACHE", "1").lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _draft_system_param():
+    """System prompt for drafting; optional Anthropic prompt caching on static prefix."""
+    if not _prompt_cache_enabled():
+        return VOICE_SYSTEM_PROMPT + VOICE_EDITORIAL_REFERENCE
+
+    ttl = os.environ.get("CREW_CACHE_TTL", "5m")
+    cache: dict = {"type": "ephemeral"}
+    if ttl in ("1h", "60m", "1hour"):
+        cache["ttl"] = "1h"
+
+    return [
+        {"type": "text", "text": VOICE_SYSTEM_PROMPT},
+        {
+            "type": "text",
+            "text": VOICE_EDITORIAL_REFERENCE,
+            "cache_control": cache,
+        },
+    ]
+
+
+def _log_cache_usage(resp) -> None:
+    usage = getattr(resp, "usage", None)
+    if not usage:
+        return
+    created = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    if created or read:
+        print(
+            f"crew: prompt cache write={created} read={read} "
+            f"uncached_input={getattr(usage, 'input_tokens', 0)}",
+            file=sys.stderr,
+        )
+
+
 def draft_post(signal: dict) -> dict:
     user_msg = f"""Signal to write about:
 
@@ -395,9 +492,10 @@ Draft posts following the voice rules. Return JSON only."""
     resp = ANTHROPIC.messages.create(
         model=MODEL,
         max_tokens=2000,
-        system=VOICE_SYSTEM_PROMPT,
+        system=_draft_system_param(),
         messages=[{"role": "user", "content": user_msg}],
     )
+    _log_cache_usage(resp)
     text = resp.content[0].text.strip()
     # Defensive: strip code fences if the model added them despite instructions
     if text.startswith("```"):
