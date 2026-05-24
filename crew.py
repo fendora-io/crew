@@ -140,8 +140,12 @@ VOICE RULES — these are absolute:
 BANNED WORDS: leverage, synergy, holistic, robust, best-in-class, industry-leading,
 thought leader, posture, journey, unlock, empower, seamless, mission-critical,
 game-changer, revolutionize, paradigm shift.
-Also banned: motivational closers, hashtag soup, em-dash-heavy aphorisms,
-"Hot take:", "Unpopular opinion:", "Let that sink in."
+Also banned: motivational closers, hashtag soup, "Hot take:", "Unpopular opinion:",
+"Let that sink in."
+
+BANNED PUNCTUATION: em dash (—). Never use it. Use a comma, colon, or period instead.
+Wrong: "Containers that ran for years—writing to /proc—will now fail."
+Right: "Containers that ran for years will now fail. They were writing to /proc."
 
 LENGTHS:
 - LinkedIn: 900-1400 chars. Hook in first 2 lines (before the "see more" cut).
@@ -153,10 +157,19 @@ LENGTHS:
 OUTPUT FORMAT — return strict JSON only, no preamble, no code fences:
 {
   "why_it_matters": "1-2 sentences on the engagement angle and who it's for",
-  "linkedin": "the full LinkedIn post, with actual line breaks",
+  "linkedin": "the full LinkedIn post, with actual line breaks, followed by a blank line and 3-4 hashtags",
   "x_thread": ["tweet 1 text", "tweet 2 text", ...],
-  "hook": "one quotable line"
+  "hook": "one quotable line",
+  "hashtags": ["#kubernetes", "#devsecops", ...]
 }
+
+HASHTAG RULES:
+- LinkedIn only. Never add hashtags to X thread tweets.
+- 3-4 tags, appended after a blank line at the end of the linkedin field.
+- Pick from: #kubernetes #devsecops #appsec #platformengineering #cloudnative
+  #docker #cicd #supplychainsecurity #ebpf #securityengineering #sre
+- Match the signal: CVE → #appsec #devsecops; K8s → #kubernetes #platformengineering.
+- No hashtags inline, mid-post, or in the hook.
 """
 
 # Static editorial reference (cached with VOICE_SYSTEM_PROMPT). Keeps the cached
@@ -208,9 +221,11 @@ TONE CALIBRATION:
 JSON DISCIPLINE:
 - Valid JSON only. Escape newlines inside strings as \\n for linkedin and tweet text.
 - x_thread must be a JSON array of strings, 5–8 items, each <=270 chars.
+- hashtags must be a JSON array of 3–4 strings, each starting with #.
 - why_it_matters is for the author (Telegram card), not for publication.
 - Do not wrap the JSON in markdown code fences.
 - Prefer active verbs in hooks: "Rotate", "Block", "Pin", "Delete", "Measure".
+- Never use em dashes (—) anywhere in the output.
 
 """
 
@@ -625,7 +640,11 @@ def send_digest(items: list[dict]):
         tg_send(header)
 
         li = d["linkedin"]
-        tg_send(f"*📘 LinkedIn* ({len(li)} chars)\n```\n{li}\n```")
+        tags = " ".join(d.get("hashtags", []))
+        li_label = f"*📘 LinkedIn* ({len(li)} chars)"
+        if tags:
+            li_label += f" — {tags}"
+        tg_send(f"{li_label}\n```\n{li}\n```")
 
         tg_send(f"*🐦 X thread* ({len(d['x_thread'])} tweets)")
         for j, tweet in enumerate(d["x_thread"], 1):
