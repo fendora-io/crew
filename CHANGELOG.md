@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-05-24
+
 ### Added
 - Initial release.
 - Signal sources: Hacker News, GitHub Trending, NVD CVE feed.
@@ -14,9 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Telegram digest with copy-paste-ready code blocks.
 - SQLite-based dedup across runs.
 - `done` / `skip` reply acknowledgments.
+- Anthropic prompt caching on the static voice prefix.
 - GitHub Actions CI (lint + secret scan).
 - Dependabot config for `pip` and `github-actions`.
 - Issue templates and PR template.
 - SECURITY.md with threat model and disclosure process.
 
-[Unreleased]: https://github.com/fendora-io/crew/commits/main
+[Unreleased]: https://github.com/fendora-io/crew/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/fendora-io/crew/releases/tag/v0.1.0
