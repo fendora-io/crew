@@ -205,46 +205,111 @@ CVE_RELEVANT_PRODUCTS = (
 )
 
 
+def _hn_hit_to_signal(hit: dict) -> dict:
+    oid = hit["objectID"]
+    return {
+        "id": f"hn:{oid}",
+        "source": "Hacker News",
+        "title": hit.get("title"),
+        "url": hit.get("url") or f"https://news.ycombinator.com/item?id={oid}",
+        "points": hit.get("points", 0),
+        "comments": hit.get("num_comments", 0),
+    }
+
+
+def _hn_dedup_extend(out: list[dict], hits: list[dict], *, keyword_filter: bool) -> None:
+    seen = {s["id"] for s in out}
+    for hit in hits:
+        title = (hit.get("title") or "").lower()
+        if keyword_filter and not any(k in title for k in DEVSECOPS_KEYWORDS):
+            continue
+        sig = _hn_hit_to_signal(hit)
+        if sig["id"] not in seen:
+            seen.add(sig["id"])
+            out.append(sig)
+
+
 def fetch_hn() -> list[dict]:
-    """Top HN stories matching DevSecOps keywords."""
+    """HN stories: front page with keyword match, then 48h topic search if empty."""
+    min_points = int(os.environ.get("CREW_HN_MIN_POINTS", "50"))
+    out: list[dict] = []
+
     r = requests.get(
         "https://hn.algolia.com/api/v1/search",
-        params={"tags": "front_page", "numericFilters": "points>80"},
+        params={"tags": "front_page", "numericFilters": f"points>{min_points}"},
         timeout=10,
     )
     r.raise_for_status()
-    out = []
-    for hit in r.json().get("hits", []):
-        title = (hit.get("title") or "").lower()
-        if any(k in title for k in DEVSECOPS_KEYWORDS):
-            out.append({
-                "id": f"hn:{hit['objectID']}",
-                "source": "Hacker News",
-                "title": hit.get("title"),
-                "url": hit.get("url") or f"https://news.ycombinator.com/item?id={hit['objectID']}",
-                "points": hit.get("points", 0),
-                "comments": hit.get("num_comments", 0),
-            })
+    _hn_dedup_extend(out, r.json().get("hits", []), keyword_filter=True)
+
+    if out:
+        return out
+
+    # Quiet front page: per-topic Algolia search (combined OR queries often return 0).
+    fallback_topics = ("kubernetes", "security", "docker", "devops", "CVE")
+    for topic in fallback_topics:
+        r2 = requests.get(
+            "https://hn.algolia.com/api/v1/search",
+            params={
+                "query": topic,
+                "tags": "story",
+                "numericFilters": f"points>{min_points}",
+                "hitsPerPage": 8,
+            },
+            timeout=10,
+        )
+        r2.raise_for_status()
+        _hn_dedup_extend(out, r2.json().get("hits", []), keyword_filter=False)
     return out
 
 
 def fetch_github_trending() -> list[dict]:
     """Today's trending repos (scrape — no auth required)."""
-    r = requests.get(
-        "https://github.com/trending?since=daily",
-        timeout=10,
-        headers={"User-Agent": "crew-bot/1.0 (+https://github.com/fendora-io/crew)"},
-    )
-    r.raise_for_status()
+    headers = {
+        # Keep UA minimal — some VPS IPs get empty/disconnect with long bot strings.
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "text/html",
+    }
+    last_err = None
+    html = ""
+    for attempt in range(3):
+        try:
+            r = requests.get(
+                "https://github.com/trending?since=daily",
+                timeout=45,
+                headers=headers,
+            )
+            r.raise_for_status()
+            html = r.text
+            if len(html) > 10_000:
+                break
+        except requests.RequestException as e:
+            last_err = e
+    else:
+        if last_err:
+            raise last_err
+        raise RuntimeError("GitHub trending returned an empty page")
+
     out = []
-    for m in re.finditer(r'<h2 class="h3 lh-condensed">\s*<a href="([^"]+)"', r.text):
-        path = m.group(1).strip()
-        out.append({
-            "id": f"gh:{path}",
-            "source": "GitHub Trending",
-            "title": path.lstrip("/"),
-            "url": f"https://github.com{path}",
-        })
+    patterns = (
+        r'<h2 class="h3 lh-condensed">\s*<a href="([^"]+)"',
+        r'<h2[^>]*>\s*<a href="(/[^"]+)"',
+    )
+    seen_paths: set[str] = set()
+    for pat in patterns:
+        for m in re.finditer(pat, html):
+            path = m.group(1).strip()
+            if not re.match(r"^/[\w.-]+/[\w.-]+$", path):
+                continue
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+            out.append({
+                "id": f"gh:{path}",
+                "source": "GitHub Trending",
+                "title": path.lstrip("/"),
+                "url": f"https://github.com{path}",
+            })
     return out[:15]
 
 
@@ -255,13 +320,26 @@ def fetch_cves() -> list[dict]:
     headers = {}
     if os.environ.get("NVD_API_KEY"):
         headers["apiKey"] = os.environ["NVD_API_KEY"]
-    r = requests.get(
-        "https://services.nvd.nist.gov/rest/json/cves/2.0",
-        params={"pubStartDate": since, "pubEndDate": until, "cvssV3Severity": "HIGH"},
-        headers=headers,
-        timeout=15,
-    )
-    r.raise_for_status()
+    last_err = None
+    for attempt in range(2):
+        try:
+            r = requests.get(
+                "https://services.nvd.nist.gov/rest/json/cves/2.0",
+                params={
+                    "pubStartDate": since,
+                    "pubEndDate": until,
+                    "cvssV3Severity": "HIGH",
+                },
+                headers=headers,
+                timeout=30,
+            )
+            r.raise_for_status()
+            break
+        except requests.RequestException as e:
+            last_err = e
+            if attempt == 0:
+                continue
+            raise last_err from e
     out = []
     for v in r.json().get("vulnerabilities", [])[:30]:
         cve = v["cve"]
