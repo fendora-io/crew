@@ -117,7 +117,7 @@ TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 # Get the thread ID from the `message_thread_id` field in /getUpdates.
 TELEGRAM_THREAD_ID = os.environ.get("TELEGRAM_THREAD_ID")
 DB_PATH = os.environ.get("CREW_DB_PATH", "./state.db")
-MODEL = os.environ.get("CREW_MODEL", "claude-opus-4-5")
+MODEL = os.environ.get("CREW_MODEL", "claude-sonnet-4-6")
 
 ANTHROPIC = Anthropic(api_key=ANTHROPIC_KEY)
 
@@ -190,9 +190,10 @@ ANTI-PATTERNS (reject these in your output):
 AUDIENCE (default):
 - Senior ICs and founders: platform, SRE, AppSec, cloud — not beginners, not C-suite fluff.
 
-FEWSHOTS — paste 2–5 of your best published posts here over time; they improve
-voice match and enlarge the cacheable prefix (cheaper multi-draft runs):
-(paste below this line)
+FEWSHOTS — paste 2–5 of your best published LinkedIn posts below (verbatim).
+They improve voice match and enlarge the cacheable prefix (cheaper per-run).
+Format: paste the post text, then a blank line, then the next post.
+Add the X thread version underneath each LinkedIn post if you have it.
 
 SIGNAL-TYPE ANGLES (pick the right frame):
 - Hacker News: what practitioners are arguing about; cite the debate, take a side.
