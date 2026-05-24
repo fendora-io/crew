@@ -214,6 +214,7 @@ JSON DISCIPLINE:
 
 """
 
+
 # ============================================================
 # State — dedup signals across runs
 # ============================================================
@@ -228,9 +229,12 @@ def db():
 
 def already_seen(signal_id: str) -> bool:
     with db() as conn:
-        return conn.execute(
-            "SELECT 1 FROM seen WHERE signal_id = ?", (signal_id,)
-        ).fetchone() is not None
+        return (
+            conn.execute(
+                "SELECT 1 FROM seen WHERE signal_id = ?", (signal_id,)
+            ).fetchone()
+            is not None
+        )
 
 
 def mark_seen(signal_id: str):
@@ -245,18 +249,56 @@ def mark_seen(signal_id: str):
 # Signal sources
 # ============================================================
 DEVSECOPS_KEYWORDS = (
-    "security", "vulnerab", "cve", "kubernetes", "k8s", "docker",
-    "container", "devops", "platform engineering", "supply chain",
-    "ci/cd", "ci cd", "github actions", "mcp ", "ai agent",
-    "prompt injection", "ebpf", "sigstore", "slsa", "argocd",
-    "helm", "terraform", "opa", "kyverno", "cilium", "istio",
+    "security",
+    "vulnerab",
+    "cve",
+    "kubernetes",
+    "k8s",
+    "docker",
+    "container",
+    "devops",
+    "platform engineering",
+    "supply chain",
+    "ci/cd",
+    "ci cd",
+    "github actions",
+    "mcp ",
+    "ai agent",
+    "prompt injection",
+    "ebpf",
+    "sigstore",
+    "slsa",
+    "argocd",
+    "helm",
+    "terraform",
+    "opa",
+    "kyverno",
+    "cilium",
+    "istio",
 )
 
 CVE_RELEVANT_PRODUCTS = (
-    "kubernetes", "docker", "container", "containerd", "runc",
-    "github action", "gitlab", "ci/cd", "supply chain",
-    "npm", "pypi", "mcp", "linux kernel", "openssh", "nginx",
-    "vault", "argocd", "helm", "terraform", "opa", "kyverno",
+    "kubernetes",
+    "docker",
+    "container",
+    "containerd",
+    "runc",
+    "github action",
+    "gitlab",
+    "ci/cd",
+    "supply chain",
+    "npm",
+    "pypi",
+    "mcp",
+    "linux kernel",
+    "openssh",
+    "nginx",
+    "vault",
+    "argocd",
+    "helm",
+    "terraform",
+    "opa",
+    "kyverno",
 )
 
 
@@ -272,7 +314,9 @@ def _hn_hit_to_signal(hit: dict) -> dict:
     }
 
 
-def _hn_dedup_extend(out: list[dict], hits: list[dict], *, keyword_filter: bool) -> None:
+def _hn_dedup_extend(
+    out: list[dict], hits: list[dict], *, keyword_filter: bool
+) -> None:
     seen = {s["id"] for s in out}
     for hit in hits:
         title = (hit.get("title") or "").lower()
@@ -359,18 +403,22 @@ def fetch_github_trending() -> list[dict]:
             if path in seen_paths:
                 continue
             seen_paths.add(path)
-            out.append({
-                "id": f"gh:{path}",
-                "source": "GitHub Trending",
-                "title": path.lstrip("/"),
-                "url": f"https://github.com{path}",
-            })
+            out.append(
+                {
+                    "id": f"gh:{path}",
+                    "source": "GitHub Trending",
+                    "title": path.lstrip("/"),
+                    "url": f"https://github.com{path}",
+                }
+            )
     return out[:15]
 
 
 def fetch_cves() -> list[dict]:
     """Recent HIGH-severity CVEs from NVD, filtered to DevSecOps-relevant products."""
-    since = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT00:00:00.000")
+    since = (datetime.now(timezone.utc) - timedelta(days=2)).strftime(
+        "%Y-%m-%dT00:00:00.000"
+    )
     until = datetime.now(timezone.utc).strftime("%Y-%m-%dT23:59:59.999")
     headers = {}
     if os.environ.get("NVD_API_KEY"):
@@ -405,12 +453,14 @@ def fetch_cves() -> list[dict]:
         )
         if not any(k in desc.lower() for k in CVE_RELEVANT_PRODUCTS):
             continue
-        out.append({
-            "id": f"cve:{cve_id}",
-            "source": "NVD",
-            "title": f"{cve_id}: {desc[:250]}",
-            "url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
-        })
+        out.append(
+            {
+                "id": f"cve:{cve_id}",
+                "source": "NVD",
+                "title": f"{cve_id}: {desc[:250]}",
+                "url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+            }
+        )
     return out
 
 
@@ -485,9 +535,9 @@ def _log_cache_usage(resp) -> None:
 def draft_post(signal: dict) -> dict:
     user_msg = f"""Signal to write about:
 
-Source: {signal['source']}
-Title: {signal['title']}
-URL: {signal['url']}
+Source: {signal["source"]}
+Title: {signal["title"]}
+URL: {signal["url"]}
 
 Draft posts following the voice rules. Return JSON only."""
     resp = ANTHROPIC.messages.create(
@@ -579,7 +629,9 @@ def send_digest(items: list[dict]):
 
         tg_send(f"*🐦 X thread* ({len(d['x_thread'])} tweets)")
         for j, tweet in enumerate(d["x_thread"], 1):
-            tg_send(f"*{j}/{len(d['x_thread'])}* ({len(tweet)} chars)\n```\n{tweet}\n```")
+            tg_send(
+                f"*{j}/{len(d['x_thread'])}* ({len(tweet)} chars)\n```\n{tweet}\n```"
+            )
 
     tg_send(
         "━━━━━━━━━━━━━━━━━━━━\n"
