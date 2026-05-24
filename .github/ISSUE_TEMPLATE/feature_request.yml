@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening, please read CONTRIBUTING.md to check whether your idea
+        fits the project's scope. crew is intentionally small.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This is NOT a posting integration (Typefully, native LinkedIn/X API, etc.) — manual posting is a design feature.
+          required: true
+        - label: This does NOT require a web UI, multi-tenancy, or external service dependencies.
+          required: true

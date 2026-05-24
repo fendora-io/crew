@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in crew isn't working
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect to happen, and what actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps so we can hit the same issue.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit SHA
+      placeholder: "e.g. main @ abc1234"
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "e.g. 3.12.3"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (with secrets redacted)
+      render: shell
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Confirm this is not a security issue
+      options:
+        - label: This issue does NOT involve a vulnerability. (Security issues go to security@fendora.io — see SECURITY.md)
+          required: true
