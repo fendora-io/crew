@@ -344,13 +344,18 @@ def _hn_dedup_extend(
 
 
 def fetch_hn() -> list[dict]:
-    """HN stories: front page with keyword match, then 48h topic search if empty."""
+    """HN stories from the last 24h: front page first, then per-topic fallback."""
     min_points = int(os.environ.get("CREW_HN_MIN_POINTS", "50"))
+    cutoff = int((datetime.now(timezone.utc) - timedelta(hours=24)).timestamp())
+    date_filter = f"created_at_i>{cutoff}"
     out: list[dict] = []
 
     r = requests.get(
         "https://hn.algolia.com/api/v1/search",
-        params={"tags": "front_page", "numericFilters": f"points>{min_points}"},
+        params={
+            "tags": "front_page",
+            "numericFilters": f"points>{min_points},{date_filter}",
+        },
         timeout=10,
     )
     r.raise_for_status()
@@ -359,15 +364,15 @@ def fetch_hn() -> list[dict]:
     if out:
         return out
 
-    # Quiet front page: per-topic Algolia search (combined OR queries often return 0).
+    # Quiet front page: per-topic search sorted by date, last 24h only.
     fallback_topics = ("kubernetes", "security", "docker", "devops", "CVE")
     for topic in fallback_topics:
         r2 = requests.get(
-            "https://hn.algolia.com/api/v1/search",
+            "https://hn.algolia.com/api/v1/search_by_date",
             params={
                 "query": topic,
                 "tags": "story",
-                "numericFilters": f"points>{min_points}",
+                "numericFilters": f"points>{min_points},{date_filter}",
                 "hitsPerPage": 8,
             },
             timeout=10,
