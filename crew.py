@@ -24,10 +24,27 @@ import json
 import re
 import sqlite3
 import sys
+import tomllib
 from datetime import datetime, timedelta, timezone
 
 import requests
 from anthropic import Anthropic
+
+
+# ============================================================
+# crew.toml — optional config file for keywords and topics
+# ============================================================
+_TOML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crew.toml")
+_cfg: dict = {}
+if os.path.exists(_TOML_PATH):
+    with open(_TOML_PATH, "rb") as _f:
+        _cfg = tomllib.load(_f).get("keywords", {})
+
+
+def _kw(key: str, default: tuple) -> tuple:
+    """Return keyword list from crew.toml or fall back to hardcoded default."""
+    val = _cfg.get(key)
+    return tuple(val) if val else default
 
 
 # ============================================================
@@ -263,58 +280,66 @@ def mark_seen(signal_id: str):
 # ============================================================
 # Signal sources
 # ============================================================
-DEVSECOPS_KEYWORDS = (
-    "security",
-    "vulnerab",
-    "cve",
-    "kubernetes",
-    "k8s",
-    "docker",
-    "container",
-    "devops",
-    "platform engineering",
-    "supply chain",
-    "ci/cd",
-    "ci cd",
-    "github actions",
-    "mcp ",
-    "ai agent",
-    "prompt injection",
-    "ebpf",
-    "sigstore",
-    "slsa",
-    "argocd",
-    "helm",
-    "terraform",
-    "opa",
-    "kyverno",
-    "cilium",
-    "istio",
+DEVSECOPS_KEYWORDS = _kw(
+    "include",
+    (
+        "security",
+        "vulnerab",
+        "cve",
+        "kubernetes",
+        "k8s",
+        "docker",
+        "container",
+        "devops",
+        "platform engineering",
+        "supply chain",
+        "ci/cd",
+        "ci cd",
+        "github actions",
+        "mcp ",
+        "ai agent",
+        "prompt injection",
+        "ebpf",
+        "sigstore",
+        "slsa",
+        "argocd",
+        "helm",
+        "terraform",
+        "opa",
+        "kyverno",
+        "cilium",
+        "istio",
+    ),
 )
 
-CVE_RELEVANT_PRODUCTS = (
-    "kubernetes",
-    "docker",
-    "container",
-    "containerd",
-    "runc",
-    "github action",
-    "gitlab",
-    "ci/cd",
-    "supply chain",
-    "npm",
-    "pypi",
-    "mcp",
-    "linux kernel",
-    "openssh",
-    "nginx",
-    "vault",
-    "argocd",
-    "helm",
-    "terraform",
-    "opa",
-    "kyverno",
+CVE_RELEVANT_PRODUCTS = _kw(
+    "cve_products",
+    (
+        "kubernetes",
+        "docker",
+        "container",
+        "containerd",
+        "runc",
+        "github action",
+        "gitlab",
+        "ci/cd",
+        "supply chain",
+        "npm",
+        "pypi",
+        "mcp",
+        "linux kernel",
+        "openssh",
+        "nginx",
+        "vault",
+        "argocd",
+        "helm",
+        "terraform",
+        "opa",
+        "kyverno",
+    ),
 )
+
+EXCLUDE_KEYWORDS = _kw("exclude", ())
 
 
 def _hn_hit_to_signal(hit: dict) -> dict:
@@ -336,6 +361,8 @@ def _hn_dedup_extend(
     for hit in hits:
         title = (hit.get("title") or "").lower()
         if keyword_filter and not any(k in title for k in DEVSECOPS_KEYWORDS):
+            continue
+        if EXCLUDE_KEYWORDS and any(k in title for k in EXCLUDE_KEYWORDS):
             continue
         sig = _hn_hit_to_signal(hit)
         if sig["id"] not in seen:
@@ -365,7 +392,9 @@ def fetch_hn() -> list[dict]:
         return out
 
     # Quiet front page: per-topic search sorted by date, last 24h only.
-    fallback_topics = ("kubernetes", "security", "docker", "devops", "CVE")
+    fallback_topics = _kw(
+        "hn_fallback_topics", ("kubernetes", "security", "docker", "devops", "CVE")
+    )
     for topic in fallback_topics:
         r2 = requests.get(
             "https://hn.algolia.com/api/v1/search_by_date",

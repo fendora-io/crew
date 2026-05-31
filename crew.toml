@@ -1,0 +1,108 @@
+# crew.toml — keyword and topic configuration
+# Edit this file to add/remove topics without touching crew.py.
+# Restart or re-run crew.py for changes to take effect.
+
+[keywords]
+
+# HN headline keywords — a story must match at least one to be included.
+include = [
+    # Core DevSecOps
+    "security",
+    "vulnerab",
+    "cve",
+    "kubernetes",
+    "k8s",
+    "docker",
+    "container",
+    "devops",
+    "platform engineering",
+    "supply chain",
+    "ci/cd",
+    "ci cd",
+    "github actions",
+    "ebpf",
+    "sigstore",
+    "slsa",
+    "argocd",
+    "helm",
+    "terraform",
+    "opa",
+    "kyverno",
+    "cilium",
+    "istio",
+    # AI / agentic security
+    "mcp ",
+    "ai agent",
+    "prompt injection",
+    "llm security",
+    "model security",
+    # EU regulatory (CRA, NIS2, DORA, AI Act)
+    "cyber resilience act",
+    "cra compliance",
+    "nis2",
+    "dora regulation",
+    "eu ai act",
+    "secure-by-design",
+    "sbom",
+    "software bill of materials",
+    # Breach / incident signal
+    "breach",
+    "ransomware",
+    "zero-day",
+    "zero day",
+    "exploit",
+    "patch",
+]
+
+# Stories matching any of these are dropped — keeps content on-topic.
+exclude = [
+    "sustainability",
+    "carbon footprint",
+    "water rights",
+    "grid capacity",
+    "nuclear power plant",
+    "climate change",
+    "data center map",
+    "aquifer",
+    "layoffs",
+    "hiring",
+    "diversity",
+]
+
+# CVE descriptions must mention at least one of these to be included.
+cve_products = [
+    "kubernetes",
+    "docker",
+    "container",
+    "containerd",
+    "runc",
+    "github action",
+    "gitlab",
+    "ci/cd",
+    "supply chain",
+    "npm",
+    "pypi",
+    "mcp",
+    "linux kernel",
+    "openssh",
+    "nginx",
+    "vault",
+    "argocd",
+    "helm",
+    "terraform",
+    "opa",
+    "kyverno",
+]
+
+# HN fallback search topics (used when front page yields nothing relevant).
+hn_fallback_topics = [
+    "kubernetes",
+    "security",
+    "docker",
+    "devops",
+    "CVE",
+    "CRA compliance",
+    "NIS2",
+    "SBOM",
+    "supply chain security",
+]
