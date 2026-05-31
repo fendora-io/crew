@@ -37,14 +37,17 @@ from anthropic import Anthropic
 _TOML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crew.toml")
 _cfg: dict = {}
 if os.path.exists(_TOML_PATH):
-    with open(_TOML_PATH, "rb") as _f:
-        _cfg = tomllib.load(_f).get("keywords", {})
+    try:
+        with open(_TOML_PATH, "rb") as _f:
+            _cfg = tomllib.load(_f).get("keywords", {})
+    except Exception as _e:
+        print(f"WARN: crew.toml parse error, using defaults: {_e}", file=sys.stderr)
 
 
 def _kw(key: str, default: tuple) -> tuple:
     """Return keyword list from crew.toml or fall back to hardcoded default."""
     val = _cfg.get(key)
-    return tuple(val) if val else default
+    return tuple(val) if val is not None else default
 
 
 # ============================================================
@@ -163,7 +166,7 @@ Also banned: motivational closers, hashtag soup, "Hot take:", "Unpopular opinion
 BANNED TIME REFERENCES: "X days ago", "last month", "recently", "just launched",
 "a few weeks ago", "earlier this year". If the source uses these, reframe around
 the topic or version number, not the timeline. "Anthropic launched MCP 90 days ago"
-becomes "MCP is now 90 days old — here's the honest verdict."
+becomes "MCP is now 90 days old. Here's the honest verdict."
 
 BANNED PUNCTUATION: em dash (—). Never use it. Use a comma, colon, or period instead.
 Wrong: "Containers that ran for years—writing to /proc—will now fail."
@@ -534,7 +537,15 @@ def gather_signals() -> list[dict]:
         except Exception as e:
             print(f"WARN: {fn.__name__} failed: {e}", file=sys.stderr)
 
-    fresh = [c for c in candidates if not already_seen(c["id"])]
+    fresh = [
+        c
+        for c in candidates
+        if not already_seen(c["id"])
+        and not (
+            EXCLUDE_KEYWORDS
+            and any(k in (c.get("title") or "").lower() for k in EXCLUDE_KEYWORDS)
+        )
+    ]
 
     def score(c):
         if c["source"] == "NVD":
@@ -681,7 +692,8 @@ def send_digest(items: list[dict]):
         pf = d.get("preflight", {})
         risk = pf.get("post_risk", "unknown")
         risk_icon = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(risk, "⚪")
-        flags = pf.get("factual_flags") or []
+        raw_flags = pf.get("factual_flags") or []
+        flags = raw_flags if isinstance(raw_flags, list) else [str(raw_flags)]
         preflight_lines = [
             f"{risk_icon} *Preflight — {risk} risk*",
             f"Recency: {pf.get('recency', 'unknown')}",
