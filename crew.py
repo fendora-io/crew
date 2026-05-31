@@ -24,10 +24,30 @@ import json
 import re
 import sqlite3
 import sys
+import tomllib
 from datetime import datetime, timedelta, timezone
 
 import requests
 from anthropic import Anthropic
+
+
+# ============================================================
+# crew.toml — optional config file for keywords and topics
+# ============================================================
+_TOML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crew.toml")
+_cfg: dict = {}
+if os.path.exists(_TOML_PATH):
+    try:
+        with open(_TOML_PATH, "rb") as _f:
+            _cfg = tomllib.load(_f).get("keywords", {})
+    except Exception as _e:
+        print(f"WARN: crew.toml parse error, using defaults: {_e}", file=sys.stderr)
+
+
+def _kw(key: str, default: tuple) -> tuple:
+    """Return keyword list from crew.toml or fall back to hardcoded default."""
+    val = _cfg.get(key)
+    return tuple(val) if val is not None else default
 
 
 # ============================================================
@@ -135,13 +155,18 @@ VOICE RULES — these are absolute:
 - Specific numbers, binaries, CVE IDs, error messages — never abstractions.
 - Use "I" not "we". Engineer voice, not consultant voice.
 - Take a side. Be willing to be wrong publicly.
-- End with one concrete action a reader can take Monday morning.
+- End with one concrete action a reader can take today (day injected per-call).
 
 BANNED WORDS: leverage, synergy, holistic, robust, best-in-class, industry-leading,
 thought leader, posture, journey, unlock, empower, seamless, mission-critical,
 game-changer, revolutionize, paradigm shift.
 Also banned: motivational closers, hashtag soup, "Hot take:", "Unpopular opinion:",
 "Let that sink in."
+
+BANNED TIME REFERENCES: "X days ago", "last month", "recently", "just launched",
+"a few weeks ago", "earlier this year". If the source uses these, reframe around
+the topic or version number, not the timeline. "Anthropic launched MCP 90 days ago"
+becomes "MCP is now 90 days old. Here's the honest verdict."
 
 BANNED PUNCTUATION: em dash (—). Never use it. Use a comma, colon, or period instead.
 Wrong: "Containers that ran for years—writing to /proc—will now fail."
@@ -156,6 +181,12 @@ LENGTHS:
 
 OUTPUT FORMAT — return strict JSON only, no preamble, no code fences:
 {
+  "preflight": {
+    "recency": "fresh | stale | unknown — one sentence explaining why",
+    "factual_flags": ["list any claims you cannot verify or suspect are wrong — empty array if none"],
+    "audience_fit": "strong | weak — one sentence on whether this signal matches security leaders / EU SaaS founders",
+    "post_risk": "low | medium | high — overall risk of posting as-is"
+  },
   "why_it_matters": "1-2 sentences on the engagement angle and who it's for",
   "linkedin": "the full LinkedIn post, with actual line breaks, followed by a blank line and 3-4 hashtags",
   "x_thread": ["tweet 1 text", "tweet 2 text", ...],
@@ -180,7 +211,7 @@ EDITORIAL REFERENCE — apply on every draft:
 STRUCTURE (LinkedIn):
 - Line 1–2: tension or surprise (specific, not generic).
 - Middle: what happened, why it matters to platform/security engineers, one opinion.
-- Close: one Monday-morning action (command, config check, policy, or question).
+- Close: one action for today (command, config check, policy, or question). Use the day name from the call context, not "Monday".
 - No "In today's fast-paced world". No recap of the headline in the first sentence.
 
 STRUCTURE (X thread):
@@ -220,6 +251,7 @@ TONE CALIBRATION:
 
 JSON DISCIPLINE:
 - Valid JSON only. Escape newlines inside strings as \\n for linkedin and tweet text.
+- preflight must always be present with recency, factual_flags (array), audience_fit, post_risk.
 - x_thread must be a JSON array of strings, 5–8 items, each <=270 chars.
 - hashtags must be a JSON array of 3–4 strings, each starting with #.
 - why_it_matters is for the author (Telegram card), not for publication.
@@ -263,58 +295,66 @@ def mark_seen(signal_id: str):
 # ============================================================
 # Signal sources
 # ============================================================
-DEVSECOPS_KEYWORDS = (
-    "security",
-    "vulnerab",
-    "cve",
-    "kubernetes",
-    "k8s",
-    "docker",
-    "container",
-    "devops",
-    "platform engineering",
-    "supply chain",
-    "ci/cd",
-    "ci cd",
-    "github actions",
-    "mcp ",
-    "ai agent",
-    "prompt injection",
-    "ebpf",
-    "sigstore",
-    "slsa",
-    "argocd",
-    "helm",
-    "terraform",
-    "opa",
-    "kyverno",
-    "cilium",
-    "istio",
+DEVSECOPS_KEYWORDS = _kw(
+    "include",
+    (
+        "security",
+        "vulnerab",
+        "cve",
+        "kubernetes",
+        "k8s",
+        "docker",
+        "container",
+        "devops",
+        "platform engineering",
+        "supply chain",
+        "ci/cd",
+        "ci cd",
+        "github actions",
+        "mcp ",
+        "ai agent",
+        "prompt injection",
+        "ebpf",
+        "sigstore",
+        "slsa",
+        "argocd",
+        "helm",
+        "terraform",
+        "opa",
+        "kyverno",
+        "cilium",
+        "istio",
+    ),
 )
 
-CVE_RELEVANT_PRODUCTS = (
-    "kubernetes",
-    "docker",
-    "container",
-    "containerd",
-    "runc",
-    "github action",
-    "gitlab",
-    "ci/cd",
-    "supply chain",
-    "npm",
-    "pypi",
-    "mcp",
-    "linux kernel",
-    "openssh",
-    "nginx",
-    "vault",
-    "argocd",
-    "helm",
-    "terraform",
-    "opa",
-    "kyverno",
+CVE_RELEVANT_PRODUCTS = _kw(
+    "cve_products",
+    (
+        "kubernetes",
+        "docker",
+        "container",
+        "containerd",
+        "runc",
+        "github action",
+        "gitlab",
+        "ci/cd",
+        "supply chain",
+        "npm",
+        "pypi",
+        "mcp",
+        "linux kernel",
+        "openssh",
+        "nginx",
+        "vault",
+        "argocd",
+        "helm",
+        "terraform",
+        "opa",
+        "kyverno",
+    ),
 )
+
+EXCLUDE_KEYWORDS = _kw("exclude", ())
 
 
 def _hn_hit_to_signal(hit: dict) -> dict:
@@ -336,6 +376,8 @@ def _hn_dedup_extend(
     for hit in hits:
         title = (hit.get("title") or "").lower()
         if keyword_filter and not any(k in title for k in DEVSECOPS_KEYWORDS):
+            continue
+        if EXCLUDE_KEYWORDS and any(k in title for k in EXCLUDE_KEYWORDS):
             continue
         sig = _hn_hit_to_signal(hit)
         if sig["id"] not in seen:
@@ -365,7 +407,9 @@ def fetch_hn() -> list[dict]:
         return out
 
     # Quiet front page: per-topic search sorted by date, last 24h only.
-    fallback_topics = ("kubernetes", "security", "docker", "devops", "CVE")
+    fallback_topics = _kw(
+        "hn_fallback_topics", ("kubernetes", "security", "docker", "devops", "CVE")
+    )
     for topic in fallback_topics:
         r2 = requests.get(
             "https://hn.algolia.com/api/v1/search_by_date",
@@ -493,7 +537,15 @@ def gather_signals() -> list[dict]:
         except Exception as e:
             print(f"WARN: {fn.__name__} failed: {e}", file=sys.stderr)
 
-    fresh = [c for c in candidates if not already_seen(c["id"])]
+    fresh = [
+        c
+        for c in candidates
+        if not already_seen(c["id"])
+        and not (
+            EXCLUDE_KEYWORDS
+            and any(k in (c.get("title") or "").lower() for k in EXCLUDE_KEYWORDS)
+        )
+    ]
 
     def score(c):
         if c["source"] == "NVD":
@@ -553,7 +605,10 @@ def _log_cache_usage(resp) -> None:
 
 
 def draft_post(signal: dict) -> dict:
-    user_msg = f"""Signal to write about:
+    today = datetime.now(timezone.utc).strftime("%A")
+    user_msg = f"""Today is {today}. Use "{today} check:" or "Do this {today}:" for the CTA — never "Monday" unless today is Monday.
+
+Signal to write about:
 
 Source: {signal["source"]}
 Title: {signal["title"]}
@@ -634,12 +689,26 @@ def send_digest(items: list[dict]):
         sig = item["signal"]
         d = item["draft"]
 
+        pf = d.get("preflight", {})
+        risk = pf.get("post_risk", "unknown")
+        risk_icon = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(risk, "⚪")
+        raw_flags = pf.get("factual_flags") or []
+        flags = raw_flags if isinstance(raw_flags, list) else [str(raw_flags)]
+        preflight_lines = [
+            f"{risk_icon} *Preflight — {risk} risk*",
+            f"Recency: {pf.get('recency', 'unknown')}",
+            f"Audience: {pf.get('audience_fit', 'unknown')}",
+        ]
+        if flags:
+            preflight_lines.append("Flags: " + " | ".join(flags))
+
         header = (
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"*Option {i} — {sig['source']}*\n"
             f"_{sig['title'][:200]}_\n"
             f"[source]({sig['url']})\n\n"
-            f"*Why it matters:* {d['why_it_matters']}\n\n"
+            + "\n".join(preflight_lines)
+            + f"\n\n*Why it matters:* {d['why_it_matters']}\n\n"
             f"*Hook:*\n```\n{d['hook']}\n```"
         )
         tg_send(header)
