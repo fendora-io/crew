@@ -178,6 +178,12 @@ LENGTHS:
 
 OUTPUT FORMAT — return strict JSON only, no preamble, no code fences:
 {
+  "preflight": {
+    "recency": "fresh | stale | unknown — one sentence explaining why",
+    "factual_flags": ["list any claims you cannot verify or suspect are wrong — empty array if none"],
+    "audience_fit": "strong | weak — one sentence on whether this signal matches security leaders / EU SaaS founders",
+    "post_risk": "low | medium | high — overall risk of posting as-is"
+  },
   "why_it_matters": "1-2 sentences on the engagement angle and who it's for",
   "linkedin": "the full LinkedIn post, with actual line breaks, followed by a blank line and 3-4 hashtags",
   "x_thread": ["tweet 1 text", "tweet 2 text", ...],
@@ -242,6 +248,7 @@ TONE CALIBRATION:
 
 JSON DISCIPLINE:
 - Valid JSON only. Escape newlines inside strings as \\n for linkedin and tweet text.
+- preflight must always be present with recency, factual_flags (array), audience_fit, post_risk.
 - x_thread must be a JSON array of strings, 5–8 items, each <=270 chars.
 - hashtags must be a JSON array of 3–4 strings, each starting with #.
 - why_it_matters is for the author (Telegram card), not for publication.
@@ -671,12 +678,25 @@ def send_digest(items: list[dict]):
         sig = item["signal"]
         d = item["draft"]
 
+        pf = d.get("preflight", {})
+        risk = pf.get("post_risk", "unknown")
+        risk_icon = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(risk, "⚪")
+        flags = pf.get("factual_flags") or []
+        preflight_lines = [
+            f"{risk_icon} *Preflight — {risk} risk*",
+            f"Recency: {pf.get('recency', 'unknown')}",
+            f"Audience: {pf.get('audience_fit', 'unknown')}",
+        ]
+        if flags:
+            preflight_lines.append("Flags: " + " | ".join(flags))
+
         header = (
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"*Option {i} — {sig['source']}*\n"
             f"_{sig['title'][:200]}_\n"
             f"[source]({sig['url']})\n\n"
-            f"*Why it matters:* {d['why_it_matters']}\n\n"
+            + "\n".join(preflight_lines)
+            + f"\n\n*Why it matters:* {d['why_it_matters']}\n\n"
             f"*Hook:*\n```\n{d['hook']}\n```"
         )
         tg_send(header)
