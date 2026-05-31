@@ -152,13 +152,18 @@ VOICE RULES — these are absolute:
 - Specific numbers, binaries, CVE IDs, error messages — never abstractions.
 - Use "I" not "we". Engineer voice, not consultant voice.
 - Take a side. Be willing to be wrong publicly.
-- End with one concrete action a reader can take Monday morning.
+- End with one concrete action a reader can take today (day injected per-call).
 
 BANNED WORDS: leverage, synergy, holistic, robust, best-in-class, industry-leading,
 thought leader, posture, journey, unlock, empower, seamless, mission-critical,
 game-changer, revolutionize, paradigm shift.
 Also banned: motivational closers, hashtag soup, "Hot take:", "Unpopular opinion:",
 "Let that sink in."
+
+BANNED TIME REFERENCES: "X days ago", "last month", "recently", "just launched",
+"a few weeks ago", "earlier this year". If the source uses these, reframe around
+the topic or version number, not the timeline. "Anthropic launched MCP 90 days ago"
+becomes "MCP is now 90 days old — here's the honest verdict."
 
 BANNED PUNCTUATION: em dash (—). Never use it. Use a comma, colon, or period instead.
 Wrong: "Containers that ran for years—writing to /proc—will now fail."
@@ -197,7 +202,7 @@ EDITORIAL REFERENCE — apply on every draft:
 STRUCTURE (LinkedIn):
 - Line 1–2: tension or surprise (specific, not generic).
 - Middle: what happened, why it matters to platform/security engineers, one opinion.
-- Close: one Monday-morning action (command, config check, policy, or question).
+- Close: one action for today (command, config check, policy, or question). Use the day name from the call context, not "Monday".
 - No "In today's fast-paced world". No recap of the headline in the first sentence.
 
 STRUCTURE (X thread):
@@ -582,7 +587,10 @@ def _log_cache_usage(resp) -> None:
 
 
 def draft_post(signal: dict) -> dict:
-    user_msg = f"""Signal to write about:
+    today = datetime.now(timezone.utc).strftime("%A")
+    user_msg = f"""Today is {today}. Use "{today} check:" or "Do this {today}:" for the CTA — never "Monday" unless today is Monday.
+
+Signal to write about:
 
 Source: {signal["source"]}
 Title: {signal["title"]}
