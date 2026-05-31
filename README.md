@@ -66,13 +66,24 @@ Once it works, drop it on cron:
 
 Full step-by-step deployment in [SETUP.md](./SETUP.md).
 
-## The one file you should edit
+## The two files you should edit
 
-`VOICE_SYSTEM_PROMPT` near the top of [`crew.py`](./crew.py). That's the entire
-product. After a week of posting, you'll know what to add to the banned-words
-list and what to tighten in the length rules. After a month, paste 3-5 of your
-own best posts into it as few-shot examples — the output quality jump is bigger
-than any model upgrade.
+**[`crew.toml`](./crew.toml)** — keywords and topics, no Python required.
+Add a keyword, save, done. Changes take effect on the next run.
+
+```toml
+[keywords]
+include = ["nis2", "cra compliance", "sbom", ...]   # what to look for
+exclude = ["layoffs", "sustainability", ...]         # what to ignore
+cve_products = ["kubernetes", "nginx", ...]          # CVE filter
+hn_fallback_topics = ["security", "devops", ...]    # HN fallback searches
+```
+
+**[`VOICE_SYSTEM_PROMPT`](./crew.py)** near the top of `crew.py`. That's the
+editorial product. After a week of posting, you'll know what to add to the
+banned-words list and what to tighten in the length rules. After a month, paste
+3-5 of your own best posts into it as few-shot examples — the output quality
+jump is bigger than any model upgrade.
 
 The Python code is a delivery mechanism. The prompt is the brand.
 
@@ -89,14 +100,21 @@ The Python code is a delivery mechanism. The prompt is the brand.
 
 ## Tuning
 
-Three levers, each in [`crew.py`](./crew.py):
+**Topics and keywords** — edit [`crew.toml`](./crew.toml), no code change needed:
+- `keywords.include` — HN headline match keywords. Add EU regulatory terms, breach keywords, tool names.
+- `keywords.exclude` — drops stories before Claude sees them (saves tokens).
+- `keywords.cve_products` — which products make a CVE worth posting about.
+- `keywords.hn_fallback_topics` — search terms used when the front page is quiet.
 
-- `DEVSECOPS_KEYWORDS` / `CVE_RELEVANT_PRODUCTS` — what counts as a relevant signal.
-  Tighten if noisy, loosen if too quiet.
+**Signal quality** — in [`crew.py`](./crew.py):
 - `gather_signals` ranking — currently CVEs win, then HN by engagement, then GitHub.
   Adjust as you learn what produces your best posts.
 - `VOICE_SYSTEM_PROMPT` — the actual editorial product. Edit weekly.
 - Prompt caching ([docs](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)) caches the static voice prefix across the 2nd and 3rd draft in a run (~5 min window). Check server logs for `prompt cache read=…`.
+
+**Preflight analysis** — every Telegram card opens with a colour-coded block before the
+post content: recency (fresh/stale), factual flags, audience fit, and post risk (🟢/🟡/🔴).
+No extra API call — it's part of the existing JSON output.
 
 ## Security
 
