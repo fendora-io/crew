@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-01
+
+### Fixed
+- `check_replies()` now replies to the exact chat and thread the message came from,
+  instead of always posting to the hardcoded `TELEGRAM_THREAD_ID`. Silent mismatch
+  when groups use topics caused `skip`/`done` acks to go to the wrong thread.
+- Telegram API errors in reply acks now log to stderr and surface in `/var/log/crew.log`.
+- Preflight card formatting: `post_risk` normalized to a single word (was sometimes
+  "medium — explanation"), factual flags rendered as individual bullet lines, em dash
+  ban extended to preflight JSON fields.
+
 ## [0.2.0] — 2026-05-31
 
 ### Added
@@ -48,7 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Issue templates and PR template.
 - SECURITY.md with threat model and disclosure process.
 
-[Unreleased]: https://github.com/fendora-io/crew/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/fendora-io/crew/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/fendora-io/crew/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/fendora-io/crew/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/fendora-io/crew/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fendora-io/crew/releases/tag/v0.1.0
