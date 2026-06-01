@@ -736,6 +736,39 @@ def send_digest(items: list[dict]):
     )
 
 
+def _tg_send_to(text: str, chat_id, thread_id=None) -> None:
+    """Send to a specific chat/thread with error logging."""
+    payload: dict = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": True,
+    }
+    if thread_id:
+        payload["message_thread_id"] = int(thread_id)
+    r = requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+        json=payload,
+        timeout=10,
+    )
+    if r.status_code != 200:
+        print(
+            f"WARN: tg_send_to failed ({r.status_code}): {r.text[:300]}",
+            file=sys.stderr,
+        )
+        payload.pop("parse_mode", None)
+        r2 = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json=payload,
+            timeout=10,
+        )
+        if r2.status_code != 200:
+            print(
+                f"WARN: tg_send_to fallback also failed ({r2.status_code}): {r2.text[:300]}",
+                file=sys.stderr,
+            )
+
+
 def check_replies():
     """Poll Telegram for new messages, ack done/skip. Dedup is handled at draft time."""
     state_file = os.environ.get("CREW_TG_STATE", "./last_update.txt")
@@ -752,11 +785,16 @@ def check_replies():
     updates = r.json().get("result", [])
     for u in updates:
         last_id = max(last_id, u["update_id"])
-        msg = u.get("message", {}).get("text", "").strip().lower()
+        message = u.get("message", {})
+        msg = message.get("text", "").strip().lower()
+        # Reply to the exact chat/thread the message came from, not the hardcoded
+        # TELEGRAM_THREAD_ID — avoids silent mismatch when groups use topics.
+        reply_chat = message.get("chat", {}).get("id") or TELEGRAM_CHAT_ID
+        reply_thread = message.get("message_thread_id")
         if msg in ("skip", "/skip"):
-            tg_send("👌 Skipped.")
+            _tg_send_to("👌 Skipped.", reply_chat, reply_thread)
         elif msg.startswith("done"):
-            tg_send("✅ Got it.")
+            _tg_send_to("✅ Got it.", reply_chat, reply_thread)
 
     with open(state_file, "w") as f:
         f.write(str(last_id))
