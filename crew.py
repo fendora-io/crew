@@ -185,7 +185,7 @@ OUTPUT FORMAT — return strict JSON only, no preamble, no code fences:
     "recency": "fresh | stale | unknown — one sentence explaining why",
     "factual_flags": ["list any claims you cannot verify or suspect are wrong — empty array if none"],
     "audience_fit": "strong | weak — one sentence on whether this signal matches security leaders / EU SaaS founders",
-    "post_risk": "low | medium | high — overall risk of posting as-is"
+    "post_risk": "low | medium | high — exactly one of these three words, nothing else"
   },
   "why_it_matters": "1-2 sentences on the engagement angle and who it's for",
   "linkedin": "the full LinkedIn post, with actual line breaks, followed by a blank line and 3-4 hashtags",
@@ -257,7 +257,7 @@ JSON DISCIPLINE:
 - why_it_matters is for the author (Telegram card), not for publication.
 - Do not wrap the JSON in markdown code fences.
 - Prefer active verbs in hooks: "Rotate", "Block", "Pin", "Delete", "Measure".
-- Never use em dashes (—) anywhere in the output.
+- Never use em dashes (—) anywhere in the output, including preflight fields.
 
 """
 
@@ -690,17 +690,20 @@ def send_digest(items: list[dict]):
         d = item["draft"]
 
         pf = d.get("preflight", {})
-        risk = pf.get("post_risk", "unknown")
+        risk_raw = (pf.get("post_risk") or "unknown").strip()
+        risk = risk_raw.split()[
+            0
+        ].lower()  # normalize "medium — explanation" → "medium"
         risk_icon = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(risk, "⚪")
         raw_flags = pf.get("factual_flags") or []
         flags = raw_flags if isinstance(raw_flags, list) else [str(raw_flags)]
         preflight_lines = [
-            f"{risk_icon} *Preflight — {risk} risk*",
-            f"Recency: {pf.get('recency', 'unknown')}",
-            f"Audience: {pf.get('audience_fit', 'unknown')}",
+            f"{risk_icon} *Preflight: {risk} risk*",
+            f"· Recency: {pf.get('recency', 'unknown')}",
+            f"· Audience: {pf.get('audience_fit', 'unknown')}",
         ]
-        if flags:
-            preflight_lines.append("Flags: " + " | ".join(flags))
+        for flag in flags:
+            preflight_lines.append(f"· Flag: {flag}")
 
         header = (
             f"━━━━━━━━━━━━━━━━━━━━\n"
