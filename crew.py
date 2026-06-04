@@ -661,11 +661,17 @@ def tg_send(text: str):
                 break
             if r.status_code == 429:
                 retry_after = (r.json().get("parameters") or {}).get("retry_after", 15)
-                print(f"WARN: Telegram rate limit, retrying in {retry_after}s", file=sys.stderr)
+                print(
+                    f"WARN: Telegram rate limit, retrying in {retry_after}s",
+                    file=sys.stderr,
+                )
                 time.sleep(retry_after + 1)
                 continue
             # Non-429 error: Markdown likely has stray symbols — retry plain text once
-            print(f"WARN: tg_send failed ({r.status_code}): {r.text[:300]}", file=sys.stderr)
+            print(
+                f"WARN: tg_send failed ({r.status_code}): {r.text[:300]}",
+                file=sys.stderr,
+            )
             payload.pop("parse_mode", None)
             r2 = requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
@@ -673,7 +679,10 @@ def tg_send(text: str):
                 timeout=10,
             )
             if r2.status_code != 200:
-                print(f"WARN: tg_send fallback failed ({r2.status_code}): {r2.text[:300]}", file=sys.stderr)
+                print(
+                    f"WARN: tg_send fallback failed ({r2.status_code}): {r2.text[:300]}",
+                    file=sys.stderr,
+                )
             break
 
 
