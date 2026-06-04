@@ -24,6 +24,7 @@ import json
 import re
 import sqlite3
 import sys
+import time
 import tomllib
 from datetime import datetime, timedelta, timezone
 
@@ -606,15 +607,15 @@ def _log_cache_usage(resp) -> None:
 
 def draft_post(signal: dict) -> dict:
     today = datetime.now(timezone.utc).strftime("%A")
-    user_msg = f"""Today is {today}. Use "{today} check:" or "Do this {today}:" for the CTA — never "Monday" unless today is Monday.
-
-Signal to write about:
+    user_msg = f"""Signal to write about:
 
 Source: {signal["source"]}
 Title: {signal["title"]}
 URL: {signal["url"]}
 
-Draft posts following the voice rules. Return JSON only."""
+Draft posts following the voice rules. Return JSON only.
+
+CRITICAL: Today is {today}. Every CTA must use exactly "{today}" as the day name. No other day is acceptable."""
     resp = ANTHROPIC.messages.create(
         model=MODEL,
         max_tokens=2000,
@@ -636,7 +637,11 @@ Draft posts following the voice rules. Return JSON only."""
 # Telegram
 # ============================================================
 def tg_send(text: str):
-    """Send a message. Telegram limit is 4096 chars; chunk if needed."""
+    """Send a message. Telegram limit is 4096 chars; chunk if needed.
+
+    Handles 429 rate-limit responses (groups: ~20 msg/min) with automatic
+    back-off. Falls back to plain text if Markdown parsing fails.
+    """
     for chunk in _chunk(text, 4000):
         payload = {
             "chat_id": TELEGRAM_CHAT_ID,
@@ -646,19 +651,39 @@ def tg_send(text: str):
         }
         if TELEGRAM_THREAD_ID:
             payload["message_thread_id"] = int(TELEGRAM_THREAD_ID)
-        r = requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json=payload,
-            timeout=10,
-        )
-        if r.status_code != 200:
-            # Markdown can choke on stray underscores/asterisks — fall back to plain
-            payload.pop("parse_mode", None)
-            requests.post(
+        for _attempt in range(4):
+            r = requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
                 json=payload,
                 timeout=10,
             )
+            if r.status_code == 200:
+                break
+            if r.status_code == 429:
+                retry_after = (r.json().get("parameters") or {}).get("retry_after", 15)
+                print(
+                    f"WARN: Telegram rate limit, retrying in {retry_after}s",
+                    file=sys.stderr,
+                )
+                time.sleep(retry_after + 1)
+                continue
+            # Non-429 error: Markdown likely has stray symbols — retry plain text once
+            print(
+                f"WARN: tg_send failed ({r.status_code}): {r.text[:300]}",
+                file=sys.stderr,
+            )
+            payload.pop("parse_mode", None)
+            r2 = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                json=payload,
+                timeout=10,
+            )
+            if r2.status_code != 200:
+                print(
+                    f"WARN: tg_send fallback failed ({r2.status_code}): {r2.text[:300]}",
+                    file=sys.stderr,
+                )
+            break
 
 
 def _chunk(text: str, size: int) -> list[str]:
@@ -786,6 +811,10 @@ def check_replies():
     for u in updates:
         last_id = max(last_id, u["update_id"])
         message = u.get("message", {})
+        # Only respond to explicit replies so random "skip" text in the group
+        # doesn't auto-trigger an ack.
+        if not message.get("reply_to_message"):
+            continue
         msg = message.get("text", "").strip().lower()
         # Reply to the exact chat/thread the message came from, not the hardcoded
         # TELEGRAM_THREAD_ID — avoids silent mismatch when groups use topics.
