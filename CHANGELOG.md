@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-06-04
+
+### Fixed
+- `tg_send` now handles Telegram HTTP 429 rate-limit responses with automatic
+  back-off (`sleep(retry_after)`), up to 4 attempts. Silent drops were causing
+  the 3rd signal to vanish when the group hit ~20 msg/min. Errors now log to stderr.
+- `check_replies` only responds to messages that are explicit replies to the bot.
+  Previously any message containing `skip` in the group triggered an ack.
+- Day CTA instruction moved to end of prompt as a `CRITICAL` line; fixes LLM
+  occasionally writing the wrong weekday in CTAs.
+
+### Changed
+- `anthropic` SDK bumped from `>=0.104.1` to `>=0.105.2`.
+
 ## [0.2.1] — 2026-06-01
 
 ### Fixed
@@ -59,7 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Issue templates and PR template.
 - SECURITY.md with threat model and disclosure process.
 
-[Unreleased]: https://github.com/fendora-io/crew/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/fendora-io/crew/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/fendora-io/crew/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/fendora-io/crew/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/fendora-io/crew/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/fendora-io/crew/compare/v0.1.0...v0.1.1
