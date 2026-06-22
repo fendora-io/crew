@@ -405,7 +405,9 @@ def fetch_hn() -> list[dict]:
         timeout=10,
     )
     r.raise_for_status()
-    _hn_dedup_extend(out, r.json().get("hits", []), keyword_filter=True, min_points=min_points)
+    _hn_dedup_extend(
+        out, r.json().get("hits", []), keyword_filter=True, min_points=min_points
+    )
 
     if out:
         return out
@@ -426,7 +428,9 @@ def fetch_hn() -> list[dict]:
             timeout=10,
         )
         r2.raise_for_status()
-        _hn_dedup_extend(out, r2.json().get("hits", []), keyword_filter=False, min_points=min_points)
+        _hn_dedup_extend(
+            out, r2.json().get("hits", []), keyword_filter=False, min_points=min_points
+        )
     return out
 
 
