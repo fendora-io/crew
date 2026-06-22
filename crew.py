@@ -371,10 +371,12 @@ def _hn_hit_to_signal(hit: dict) -> dict:
 
 
 def _hn_dedup_extend(
-    out: list[dict], hits: list[dict], *, keyword_filter: bool
+    out: list[dict], hits: list[dict], *, keyword_filter: bool, min_points: int = 0
 ) -> None:
     seen = {s["id"] for s in out}
     for hit in hits:
+        if hit.get("points", 0) < min_points:
+            continue
         title = (hit.get("title") or "").lower()
         if keyword_filter and not any(k in title for k in DEVSECOPS_KEYWORDS):
             continue
@@ -393,16 +395,17 @@ def fetch_hn() -> list[dict]:
     date_filter = f"created_at_i>{cutoff}"
     out: list[dict] = []
 
+    # Note: Algolia dropped support for points as a numericFilter — filter client-side.
     r = requests.get(
         "https://hn.algolia.com/api/v1/search",
         params={
             "tags": "front_page",
-            "numericFilters": f"points>{min_points},{date_filter}",
+            "numericFilters": date_filter,
         },
         timeout=10,
     )
     r.raise_for_status()
-    _hn_dedup_extend(out, r.json().get("hits", []), keyword_filter=True)
+    _hn_dedup_extend(out, r.json().get("hits", []), keyword_filter=True, min_points=min_points)
 
     if out:
         return out
@@ -417,13 +420,13 @@ def fetch_hn() -> list[dict]:
             params={
                 "query": topic,
                 "tags": "story",
-                "numericFilters": f"points>{min_points},{date_filter}",
+                "numericFilters": date_filter,
                 "hitsPerPage": 8,
             },
             timeout=10,
         )
         r2.raise_for_status()
-        _hn_dedup_extend(out, r2.json().get("hits", []), keyword_filter=False)
+        _hn_dedup_extend(out, r2.json().get("hits", []), keyword_filter=False, min_points=min_points)
     return out
 
 
