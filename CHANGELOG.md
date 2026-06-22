@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-06-23
+
+### Fixed
+- HN Algolia API stopped supporting `points` as a numeric filter around June 18,
+  silently returning 0 results and causing every daily run to report "No fresh signals".
+  Points threshold is now applied client-side after fetching.
+
 ## [0.2.2] — 2026-06-04
 
 ### Fixed
