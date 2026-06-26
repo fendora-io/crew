@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-06-27
+
+### Fixed
+- GitHub Trending scraper broken since GitHub changed repo links from
+  `<h2 class="h3 lh-condensed">` to `<article class="Box-row">` elements.
+  Scraper now matches `<article>` tags and skips `/sponsors/` hrefs.
+- HN fallback topic search was using the same 50-point threshold as the
+  front-page search, dropping all results. Fallback now defaults to 5 points
+  (`CREW_HN_FALLBACK_MIN_POINTS` env var to override).
+
 ## [0.2.3] — 2026-06-23
 
 ### Fixed
