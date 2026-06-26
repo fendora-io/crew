@@ -391,6 +391,8 @@ def _hn_dedup_extend(
 def fetch_hn() -> list[dict]:
     """HN stories from the last 24h: front page first, then per-topic fallback."""
     min_points = int(os.environ.get("CREW_HN_MIN_POINTS", "50"))
+    # Fallback topic search uses a lower bar — relevance comes from the query, not virality.
+    fallback_min_points = int(os.environ.get("CREW_HN_FALLBACK_MIN_POINTS", "5"))
     cutoff = int((datetime.now(timezone.utc) - timedelta(hours=24)).timestamp())
     date_filter = f"created_at_i>{cutoff}"
     out: list[dict] = []
@@ -429,7 +431,10 @@ def fetch_hn() -> list[dict]:
         )
         r2.raise_for_status()
         _hn_dedup_extend(
-            out, r2.json().get("hits", []), keyword_filter=False, min_points=min_points
+            out,
+            r2.json().get("hits", []),
+            keyword_filter=False,
+            min_points=fallback_min_points,
         )
     return out
 
@@ -462,18 +467,19 @@ def fetch_github_trending() -> list[dict]:
         raise RuntimeError("GitHub trending returned an empty page")
 
     out = []
-    patterns = (
-        r'<h2 class="h3 lh-condensed">\s*<a href="([^"]+)"',
-        r'<h2[^>]*>\s*<a href="(/[^"]+)"',
-    )
     seen_paths: set[str] = set()
-    for pat in patterns:
-        for m in re.finditer(pat, html):
-            path = m.group(1).strip()
+    # GitHub changed from <h2 class="h3 lh-condensed"> to <article class="Box-row">.
+    # Take the first /owner/repo href from each article (skipping /sponsors/ etc.).
+    for article_m in re.finditer(r"<article[^>]*>(.*?)</article>", html, re.DOTALL):
+        article = article_m.group(1)
+        for href_m in re.finditer(r'href="(/[^"?#]+)"', article):
+            path = href_m.group(1).strip()
             if not re.match(r"^/[\w.-]+/[\w.-]+$", path):
                 continue
-            if path in seen_paths:
+            if path.startswith("/sponsors/"):
                 continue
+            if path in seen_paths:
+                break
             seen_paths.add(path)
             out.append(
                 {
@@ -483,6 +489,7 @@ def fetch_github_trending() -> list[dict]:
                     "url": f"https://github.com{path}",
                 }
             )
+            break
     return out[:15]
 
 
