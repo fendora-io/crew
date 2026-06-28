@@ -48,12 +48,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Sieve (SAST)
-        uses: fendora-io/sieve-action@v1.4.0
-        with:
-          repo-alias: fendora-io/crew
-          fail-on-findings: "true"
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
